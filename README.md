@@ -100,6 +100,10 @@ O jogo é dividido em noites, cada uma com tarefas mais complexas e segredos par
 - Dicas visuais e sonoras para ajudar o jogador
 - Tela de fim de jogo e opções de reinício
 
+# References
+- https://sketchfab.com/3d-models/millie-fnaf-fbx-animated-model-not-mine-851f2867db65420ba8f7481dda4d7d6d
+- 
+
 ## Contact
 
 Se tiver dúvidas ou sugestões, entre em contato:
