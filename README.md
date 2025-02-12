@@ -102,7 +102,7 @@ O jogo é dividido em noites, cada uma com tarefas mais complexas e segredos par
 
 # References
 - https://sketchfab.com/3d-models/millie-fnaf-fbx-animated-model-not-mine-851f2867db65420ba8f7481dda4d7d6d
-- 
+- https://sketchfab.com/3d-models/vanessa-fnaf-security-breach-f19a2e6d0939466dbff27193c0dc12a6
 
 ## Contact
 
