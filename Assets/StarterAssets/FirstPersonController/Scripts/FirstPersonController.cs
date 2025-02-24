@@ -238,7 +238,7 @@ namespace StarterAssets
 
 			if (StaminaUI != null)
 			{
-				StaminaUI.UpdateStamina(_currentStamina, MaxStamina); // Atualiza a barra no UI
+				StaminaUI.UpdateStamina(_currentStamina, MaxStamina, _isTired); // Atualiza a barra no UI
 			}
 		}
 
