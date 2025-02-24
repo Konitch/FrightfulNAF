@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -33,6 +34,22 @@ namespace StarterAssets
 		[Tooltip("Time required to pass before entering the fall state. Useful for walking down stairs")]
 		public float FallTimeout = 0.15f;
 
+        [Header("Stamina System")]
+        public float MaxStamina = 5.0f;
+        public float StaminaDrainRate = 1.0f;
+        public float StaminaRecoveryRate = 0.5f;
+        public float TiredSpeedMultiplier = 0.75f;
+        private float _currentStamina;
+        private bool _isTired;
+		public StaminaUI StaminaUI;
+
+        [Header("Dizziness Effect")]
+        public float DizzinessIntensity = 5.0f;
+        public float DizzinessDuration = 5.0f;
+        public float CameraResetSpeed = 2.0f;
+        private float _dizzinessTimer;
+        private bool _isDizzy;
+
 		[Header("Player Grounded")]
 		[Tooltip("If the character is grounded or not. Not part of the CharacterController built in grounded check")]
 		public bool Grounded = true;
@@ -51,8 +68,22 @@ namespace StarterAssets
 		[Tooltip("How far in degrees can you move the camera down")]
 		public float BottomClamp = -90.0f;
 
+		[Header("Head Bobbing")]
+		public float WalkBobFrequency = 6.0f;   // Frequência do balanço ao andar
+		public float WalkBobAmplitude = 0.02f;  // Intensidade do balanço ao andar
+		public float SprintBobFrequency = 10.0f; // Frequência do balanço ao correr
+		public float SprintBobAmplitude = 0.05f; // Intensidade do balanço ao correr
+		
+
+		[Header("Idle Breathing")]
+		public float BreathingFrequency = 1.5f; // Frequência do movimento de respiração
+		public float BreathingAmplitude = 0.02f; // Intensidade da respiração
+
+		
+
 		// cinemachine
 		private float _cinemachineTargetPitch;
+		private Vector3 _cameraInitialLocalPosition;
 
 		// player
 		private float _speed;
@@ -63,6 +94,12 @@ namespace StarterAssets
 		// timeout deltatime
 		private float _jumpTimeoutDelta;
 		private float _fallTimeoutDelta;
+
+		// head bobbing
+		private float _headBobbingTimer = 0.0f;
+
+		// idle breathing
+		private float _breathingTimer = 0.0f;
 
 	
 #if ENABLE_INPUT_SYSTEM
@@ -97,29 +134,29 @@ namespace StarterAssets
 
 		private void Start()
 		{
-			_controller = GetComponent<CharacterController>();
-			_input = GetComponent<StarterAssetsInputs>();
+            _controller = GetComponent<CharacterController>();
+            _input = GetComponent<StarterAssetsInputs>();
 #if ENABLE_INPUT_SYSTEM
-			_playerInput = GetComponent<PlayerInput>();
-#else
-			Debug.LogError( "Starter Assets package is missing dependencies. Please use Tools/Starter Assets/Reinstall Dependencies to fix it");
+            _playerInput = GetComponent<PlayerInput>();
 #endif
-
-			// reset our timeouts on start
-			_jumpTimeoutDelta = JumpTimeout;
-			_fallTimeoutDelta = FallTimeout;
-		}
+            _cameraInitialLocalPosition = CinemachineCameraTarget.transform.localPosition;
+            _currentStamina = MaxStamina;
+        }
 
 		private void Update()
 		{
 			JumpAndGravity();
 			GroundedCheck();
+			HandleStamina();
 			Move();
+
 		}
 
 		private void LateUpdate()
 		{
 			CameraRotation();
+			ApplyCameraMotion();
+            ApplyDizzinessEffect();
 		}
 
 		private void GroundedCheck()
@@ -131,30 +168,112 @@ namespace StarterAssets
 
 		private void CameraRotation()
 		{
-			// if there is an input
+			// Se houver entrada do jogador
 			if (_input.look.sqrMagnitude >= _threshold)
 			{
-				//Don't multiply mouse input by Time.deltaTime
 				float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
-				
+
 				_cinemachineTargetPitch += _input.look.y * RotationSpeed * deltaTimeMultiplier;
 				_rotationVelocity = _input.look.x * RotationSpeed * deltaTimeMultiplier;
 
-				// clamp our pitch rotation
+				// Mantém a rotação vertical dentro dos limites
 				_cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
 
-				// Update Cinemachine camera target pitch
+				// Aplica a rotação na câmera sem alterar sua posição
 				CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, 0.0f, 0.0f);
 
-				// rotate the player left and right
+				// Garante que a posição da câmera não seja alterada
+				CinemachineCameraTarget.transform.localPosition = _cameraInitialLocalPosition;
+
+				// Rotaciona o jogador na horizontal
 				transform.Rotate(Vector3.up * _rotationVelocity);
 			}
 		}
 
+		private void ApplyCameraMotion()
+		{
+			if (_controller.velocity.magnitude > 0.1f && Grounded)
+			{
+				// Diferenciar entre andar e correr
+				float bobFrequency = _input.sprint ? SprintBobFrequency : WalkBobFrequency;
+				float bobAmplitude = _input.sprint ? SprintBobAmplitude : WalkBobAmplitude;
+
+				// Head bobbing (movimento ao andar/correr)
+				_headBobbingTimer += Time.deltaTime * bobFrequency;
+				float bobOffset = Mathf.Sin(_headBobbingTimer) * bobAmplitude;
+				CinemachineCameraTarget.transform.localPosition = _cameraInitialLocalPosition + new Vector3(0, bobOffset, 0);
+			}
+			else
+			{
+				// Movimento de respiração (quando parado)
+				_breathingTimer += Time.deltaTime * BreathingFrequency;
+				float breathOffsetY = Mathf.Sin(_breathingTimer) * BreathingAmplitude; // Leve sobe e desce
+				float breathOffsetX = Mathf.Cos(_breathingTimer * 0.5f) * (BreathingAmplitude / 2); // Pequeno balanço lateral
+				CinemachineCameraTarget.transform.localPosition = _cameraInitialLocalPosition + new Vector3(breathOffsetX, breathOffsetY, 0);
+			}
+		}
+
+		private void HandleStamina()
+        {
+			if (_input.sprint && _speed == SprintSpeed)
+			{
+				_currentStamina -= StaminaDrainRate * Time.deltaTime;
+				if (_currentStamina <= 0)
+				{
+					_currentStamina = 0;
+					_isTired = true;
+					_isDizzy = true;
+					_dizzinessTimer = DizzinessDuration;
+				}
+			}
+			else
+			{
+				_currentStamina += StaminaRecoveryRate * Time.deltaTime;
+				if (_currentStamina >= MaxStamina)
+				{
+					_currentStamina = MaxStamina;
+					_isTired = false;
+				}
+			}
+
+			if (StaminaUI != null)
+			{
+				StaminaUI.UpdateStamina(_currentStamina, MaxStamina); // Atualiza a barra no UI
+			}
+		}
+
+        private void ApplyDizzinessEffect()
+        {
+		if (_isDizzy)
+		{
+			_dizzinessTimer -= Time.deltaTime;
+			float shakeAmount = Mathf.Sin(Time.time * DizzinessIntensity) * 2.0f; // Ajusta a intensidade do balanço
+			CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, shakeAmount, shakeAmount * 0.5f);
+			
+			if (_dizzinessTimer <= 0)
+			{
+				_isDizzy = false;
+			}
+		}
+		else if (CinemachineCameraTarget.transform.localRotation != Quaternion.Euler(_cinemachineTargetPitch, 0.0f, 0.0f))
+		{
+			CinemachineCameraTarget.transform.localRotation = Quaternion.Lerp(
+				CinemachineCameraTarget.transform.localRotation,
+				Quaternion.Euler(_cinemachineTargetPitch, 0.0f, 0.0f), 
+				CameraResetSpeed * Time.deltaTime
+			);
+		}
+	}
+
 		private void Move()
 		{
 			// set target speed based on move speed, sprint speed and if sprint is pressed
-			float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
+				float targetSpeed = _input.sprint && !_isTired ? SprintSpeed : MoveSpeed;
+
+				if (_isDizzy)
+				{
+					targetSpeed *= TiredSpeedMultiplier; // Reduz a velocidade durante a tontura
+				}
 
 			// a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
 
