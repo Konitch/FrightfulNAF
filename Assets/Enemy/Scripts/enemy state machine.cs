@@ -72,17 +72,19 @@ public class EnemyStateMachine : MonoBehaviour
             if (player != null)
             {
                 Vector3 playerDirection = (player.transform.position - transform.position).normalized;
+                
                 if (playerDirection.x < 0)
                 {
                     // Virar para a esquerda
-                    transform.localScale = new Vector3(-1, 1, 1);
+                    transform.rotation = Quaternion.Euler(0, 180, 0);
                 }
                 else
                 {
                     // Virar para a direita
-                    transform.localScale = new Vector3(1, 1, 1);
+                    transform.rotation = Quaternion.Euler(0, 0, 0);
                 }
             }
+
 
             // Transição para o estado de perseguição
             currentState = State.Chasing;
