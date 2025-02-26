@@ -605,7 +605,7 @@ AnimatorState:
   m_StateMachineBehaviours:
   - {fileID: -2157185084057209342}
   m_Position: {x: -348, y: -180, z: 0}
-  m_IKOnFeet: 0
+  m_IKOnFeet: 1
   m_WriteDefaultValues: 1
   m_Mirror: 0
   m_SpeedParameterActive: 0
@@ -961,7 +961,7 @@ AnimatorState:
   m_StateMachineBehaviours:
   - {fileID: 6280542536385945392}
   m_Position: {x: 48, y: -12, z: 0}
-  m_IKOnFeet: 0
+  m_IKOnFeet: 1
   m_WriteDefaultValues: 1
   m_Mirror: 0
   m_SpeedParameterActive: 0

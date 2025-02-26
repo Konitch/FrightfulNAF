@@ -1,10 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 public class EnemyStateMachine : MonoBehaviour
 {
-    enum State { Patrolling, Chasing }
+    enum State { Idle, Patrolling, Chasing }
     State currentState;
 
     public Transform pointA;
@@ -13,20 +14,27 @@ public class EnemyStateMachine : MonoBehaviour
     public float chaseSpeed = 5.0f;
     Transform targetPoint;
     public bool playerDetect;
-    [HideInInspector]
 
+    NavMeshAgent agent;
 
     void Start()
     {
+        agent = GetComponent<NavMeshAgent>(); // Obtém o NavMeshAgent
         playerDetect = false;
         currentState = State.Patrolling;
         targetPoint = pointA;
+
+        agent.speed = patrolSpeed; // Configura velocidade inicial
+        agent.SetDestination(targetPoint.position); // Define primeiro destino
     }
 
     void Update()
     {
         switch (currentState)
         {
+            case State.Idle:
+                Idle();
+                break;
             case State.Patrolling:
                 Patrol();
                 break;
@@ -39,104 +47,70 @@ public class EnemyStateMachine : MonoBehaviour
 
     void Patrol()
     {
-        // Move o oponente na direção do ponto alvo
-        transform.position = Vector3.MoveTowards(transform.position, targetPoint.position, patrolSpeed * Time.deltaTime);
-
-        // Verifica se o oponente chegou ao ponto alvo
-        if (Vector3.Distance(transform.position, targetPoint.position) < 0.1f)
+        agent.speed = patrolSpeed;
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
         {
-            // Alterna o ponto alvo entre pointA e pointB (Utilização de operador ternário)
-            // variável = (condição) ? valorSeVerdadeiro : valorSeFalso;
-            targetPoint = (targetPoint == pointA) ? pointB : pointA;
-
-            // Vira o oponente na direção do próximo ponto alvo
-            Vector3 direction = (targetPoint.position - transform.position).normalized;
-            if (direction.x < 0)
-            {
-                // Virar para a esquerda
-                transform.Rotate(0,180,0);
-            }
-            else
-            {
-                // Virar para a direita
-                transform.Rotate(0, 180, 0);
-            }
+            currentState = State.Idle; // Para o inimigo quando chega ao ponto
+            return; // Sai da função
         }
 
-        // Verificar se o jogador está próximo
         if (playerDetect)
         {
-            // Vira o oponente na direção do jogador
             GameObject player = GameObject.FindGameObjectWithTag("Player");
-            //verificar se o player foi realmente encontrado e não deixou de existir - pessoas correndo com o cara ainda mort
             if (player != null)
             {
                 Vector3 playerDirection = (player.transform.position - transform.position).normalized;
-                
+
                 if (playerDirection.x < 0)
-                {
-                    // Virar para a esquerda
                     transform.rotation = Quaternion.Euler(0, 180, 0);
-                }
                 else
-                {
-                    // Virar para a direita
                     transform.rotation = Quaternion.Euler(0, 0, 0);
-                }
             }
 
-
-            // Transição para o estado de perseguição
             currentState = State.Chasing;
+            agent.isStopped = false; // Retoma o movimento
+            agent.speed = chaseSpeed;
             Debug.Log("Transition to Chasing");
         }
     }
 
-
     void Chase()
     {
-        // Encontra o GameObject do jogador utilizando a tag "Player"
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
-            // Obtém a posição atual do jogador
-            Vector3 playerPosition = player.transform.position;
+            agent.SetDestination(player.transform.position);
 
-            // Obtém a posição atual do oponente
-            Vector3 currentPosition = transform.position;
+            Vector3 playerDirection = (player.transform.position - transform.position).normalized;
+            if (playerDirection.x < 0)
+                transform.rotation = Quaternion.Euler(0, 180, 0);
+            else
+                transform.rotation = Quaternion.Euler(0, 0, 0);
 
-            // Cria um novo vetor de destino para o oponente que mantém a posição Y constante
-            Vector3 targetPosition = new Vector3(playerPosition.x, currentPosition.y, playerPosition.z);
-
-            // Rotaciona o oponente na direção do jogador
-            //RotateTowards(playerPosition);
-
-            // Move o oponente na direção do jogador apenas nas coordenadas X e Z
-            transform.position = Vector3.MoveTowards(currentPosition, targetPosition, chaseSpeed * Time.deltaTime);
-
-            // Verifica se a distância entre o oponente e o jogador é maior que um limite
-            // Se for, retorna ao estado de patrulha
-            if (Vector3.Distance(currentPosition, playerPosition) > 12.0f)
+            if (Vector3.Distance(transform.position, player.transform.position) > 6.0f)
             {
-                currentState = State.Patrolling;
-                Debug.Log("Transition to Patrolling");
+                currentState = State.Idle;
+                Debug.Log("Transition to Idle");
             }
         }
         else
         {
-            // Se o jogador não for encontrado, retorna ao estado de patrulha
-            currentState = State.Patrolling;
-            Debug.Log("Player not found, back to Patrolling");
+            currentState = State.Idle;
+            Debug.Log("Player not found, back to Idle");
         }
     }
 
+    void Idle()
+    {
+        agent.isStopped = true;
+        agent.velocity = Vector3.zero; // Garante que ele realmente pare
+        agent.speed = 0f;
 
-
-
-
-
-
-
-
-
+        if (playerDetect) // Se detectar o jogador, começa a perseguição
+        {
+            currentState = State.Chasing;
+            agent.isStopped = false;
+            agent.speed = chaseSpeed;
+        }
+    }
 }

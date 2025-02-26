@@ -2,91 +2,92 @@ using UnityEngine.AI;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PatrolLState : StateMachineBehaviour
+public class PatrolState : StateMachineBehaviour
 {
-    Transform player;
-    float distance;
-    public static float chaseRange = 8;
+    private Transform player;
+    private NavMeshAgent agent;
+    private List<Transform> waypoints = new List<Transform>();
+    private int currentWaypointIndex = 0;
+    private float waitTime = 2f; // Tempo que o inimigo espera antes de ir para o próximo waypoint
+    private float waitCounter;
+    private bool waiting;
 
-    float timer;
-    bool isIdle = false; // Novo estado para controlar Patrol/Idle
-    List<Transform> waypoints = new List<Transform>();
-    NavMeshAgent agent;
+    public static float chaseRange = 8f;
 
-    // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
         player = GameObject.FindGameObjectWithTag("Player")?.transform;
         agent = animator.GetComponent<NavMeshAgent>();
-        timer = 0;
-        agent.speed = 1.5f;
+        agent.speed = 2f;
+        agent.isStopped = false;
 
-        GameObject go = GameObject.FindGameObjectWithTag("Waypoints");
-        if (go != null)
+        animator.SetBool("IsPatrolling", true);
+
+        waypoints.Clear();
+        GameObject[] waypointObjects = GameObject.FindGameObjectsWithTag("Waypoint");
+
+        foreach (GameObject waypoint in waypointObjects)
         {
-            foreach (Transform t in go.transform)
-                waypoints.Add(t);
+            waypoints.Add(waypoint.transform);
         }
 
         if (waypoints.Count > 0)
-            agent.SetDestination(waypoints[Random.Range(0, waypoints.Count)].position);
+        {
+            currentWaypointIndex = Random.Range(0, waypoints.Count);
+            MoveToNextWaypoint();
+        }
+
+        waiting = false;
+        waitCounter = waitTime;
     }
 
-    // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-       if (!isIdle && agent.remainingDistance <= agent.stoppingDistance && waypoints.Count > 0)
-        {
-            agent.SetDestination(waypoints[Random.Range(0, waypoints.Count)].position);
-        }
+        if (agent == null || waypoints.Count == 0) return;
 
-        timer += Time.deltaTime;
+        // Checa a distância do jogador em todo frame
+        float distanceToPlayer = Vector3.Distance(player.position, animator.transform.position);
 
-        if (timer > 5)
-        {
-            Debug.Log("Transição vai começar");
-            isIdle = !isIdle; // Alterna entre Patrol e Idle
-            timer = 0;
-
-            if (isIdle)
-            {
-                Debug.Log("Tá parado");
-                animator.SetBool("IsPatrolling", false);
-                agent.isStopped = true; // Para o inimigo no Idle
-            }
-            else
-            {
-                Debug.Log("Tá patrulhando");
-                animator.SetBool("IsPatrolling", true);
-                agent.isStopped = false;
-                if (waypoints.Count > 0)
-                    agent.SetDestination(waypoints[Random.Range(0, waypoints.Count)].position);
-            }
-        }
-
-        distance = Vector3.Distance(player.position, animator.transform.position);
-        if (distance < chaseRange)
+        if (distanceToPlayer < chaseRange)
         {
             animator.SetBool("IsChasing", true);
+            return; // Sai do update para evitar que o inimigo continue patrulhando enquanto persegue
         }
 
+        // Patrulha normal
+        if (waiting)
+        {
+            waitCounter -= Time.deltaTime;
+            if (waitCounter <= 0)
+            {
+                waiting = false;
+                MoveToNextWaypoint();
+            }
+        }
+        else
+        {
+            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+            {
+                waiting = true;
+                waitCounter = waitTime;
+            }
+        }
     }
 
-    // OnStateExit is called when a transition ends and the state machine finishes evaluating this state
+    private void MoveToNextWaypoint()
+    {
+        if (waypoints.Count == 0) return;
+
+        currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Count;
+        agent.SetDestination(waypoints[currentWaypointIndex].position);
+    }
+
     override public void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        agent.isStopped = false;;
+        if (agent != null)
+        {
+            agent.isStopped = false;
+        }
+        animator.SetBool("IsPatrolling", false); // Garante que a animação de patrulha seja desligada ao sair
     }
-
-    // OnStateMove is called right after Animator.OnAnimatorMove()
-    override public void OnStateMove(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    {
-        // Implement code that processes and affects root motion
-    }
-
-    // OnStateIK is called right after Animator.OnAnimatorIK()
-    //override public void OnStateIK(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that sets up animation IK (inverse kinematics)
-    //}
 }
