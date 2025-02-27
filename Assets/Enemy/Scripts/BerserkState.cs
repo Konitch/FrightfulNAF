@@ -3,13 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ChaseState : StateMachineBehaviour
+public class BerserkState : StateMachineBehaviour
 {
 
-    
-    System.Random random = new System.Random();
-    float timer;
-    int condition = 5;
     float distance;
     public static float chaseRange = 8;
 
@@ -20,7 +16,6 @@ public class ChaseState : StateMachineBehaviour
     // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        timer = 0;
         agent = animator.GetComponent<NavMeshAgent>();
         player = GameObject.FindGameObjectWithTag("Player").transform;
         agent.speed = 3.5f;
@@ -30,21 +25,14 @@ public class ChaseState : StateMachineBehaviour
     // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        timer += Time.deltaTime;
 
         agent.SetDestination(player.position);
 
-
         distance = Vector3.Distance(player.position, animator.transform.position);
-        if (distance > 40)
+        if (distance < chaseRange)
         {
-            animator.SetBool("IsChasing", false);
-        } else if(timer > condition)
-        {
-            condition = random.Next(5, 11);
-            animator.SetBool("IsRoaring", true);
-            animator.SetBool("IsPatrolling", false);
-            animator.SetBool("IsChasing", false);
+            animator.SetBool("IsChasing", true);
+            animator.SetBool("IsBerserk", false);
         }
 
         if (distance < 2.5f)
